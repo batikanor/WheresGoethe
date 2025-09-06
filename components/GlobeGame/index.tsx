@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 // Dynamically import to avoid SSR issues with three.js
 const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
@@ -26,7 +26,6 @@ function haversineKm(a: LatLng, b: LatLng): number {
 }
 
 export default function GlobeGame() {
-  const globeRef = useRef<any>(null);
   const [guess, setGuess] = useState<LatLng | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
@@ -59,12 +58,10 @@ export default function GlobeGame() {
       <div className="w-full" style={{ maxWidth: 640 }}>
         <div className="w-full" style={{ height: 360 }}>
           <Globe
-            ref={globeRef}
             // Use OpenStreetMap as tile engine
             globeTileEngineUrl={(x: number, y: number, l: number) =>
               `https://tile.openstreetmap.org/${l}/${x}/${y}.png`
             }
-            globeTileEngineMaxLevel={7}
             showAtmosphere={true}
             onGlobeClick={({ lat, lng }) => {
               setGuess({ lat, lng });
