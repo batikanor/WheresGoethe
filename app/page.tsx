@@ -11,7 +11,7 @@ const frame = {
     title: "Launch App",
     action: {
       type: "launch_frame",
-      name: "Mini-app Starter",
+      name: "Where's Goethe?",
       url: appUrl,
       splashImageUrl: `${appUrl}/images/splash.png`,
       splashBackgroundColor: "#ffffff",
@@ -21,10 +21,10 @@ const frame = {
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: "Mini-app Starter",
+    title: "Where's Goethe?",
     openGraph: {
-      title: "Mini-app Starter",
-      description: "A starter for Farcastermini-apps",
+      title: "Where's Goethe?",
+      description: "Find precise birth locations of famous people.",
     },
     other: {
       "fc:frame": JSON.stringify(frame),

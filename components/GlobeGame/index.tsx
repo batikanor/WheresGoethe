@@ -1,5 +1,6 @@
 "use client";
 
+import DebugPanel from "@/components/DebugPanel";
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 
@@ -90,6 +91,7 @@ export default function GlobeGame() {
   const [results, setResults] = useState<
     Array<{ id: string; guess: LatLng; answer: LatLng; distanceKm: number }>
   >([]);
+  const [showDebug, setShowDebug] = useState<boolean>(false);
 
   const QUIZ3 = useMemo(() => QUIZ.slice(0, 3), []);
   const current = QUIZ3[questionIdx];
@@ -310,11 +312,22 @@ export default function GlobeGame() {
                   // Placeholder CTA - can link to leaderboard route later
                   alert("Coming soon: friends leaderboard");
                 }}
-                className="w-full px-4 py-3 rounded-lg font-semibold text-white bg-purple-600 hover:bg-purple-700 shadow"
+                className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-purple-600 hover:bg-purple-700 shadow"
               >
                 View friends
               </button>
+              <button
+                onClick={() => setShowDebug((v) => !v)}
+                className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-gray-800 hover:bg-gray-900 shadow"
+              >
+                Debug
+              </button>
             </div>
+            {showDebug && (
+              <div className="mt-4 border-t border-black/5 pt-4">
+                <DebugPanel />
+              </div>
+            )}
           </div>
         </div>
       )}

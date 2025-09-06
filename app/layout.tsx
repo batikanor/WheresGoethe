@@ -6,8 +6,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Farcaster Mini-app Starter",
-  description: "A starter for Farcaster mini-apps",
+  title: "Where's Goethe?",
+  description: "Find precise birth locations of famous people.",
 };
 
 export default function RootLayout({
