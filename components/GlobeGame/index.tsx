@@ -84,8 +84,15 @@ export default function GlobeGame() {
   const [questionIdx, setQuestionIdx] = useState(0);
   const [guess, setGuess] = useState<LatLng | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [markerTapped, setMarkerTapped] = useState<null | "guess" | "answer">(
+    null
+  );
+  const [results, setResults] = useState<
+    Array<{ id: string; guess: LatLng; answer: LatLng; distanceKm: number }>
+  >([]);
 
-  const current = QUIZ[questionIdx];
+  const QUIZ3 = useMemo(() => QUIZ.slice(0, 3), []);
+  const current = QUIZ3[questionIdx];
 
   // Animated arc between guess and correct answer when submitted
   const arcsData = useMemo(() => {
@@ -120,24 +127,59 @@ export default function GlobeGame() {
     el.style.width = "24px";
     el.style.transform = "translate(-12px, -24px)"; // center tip
     el.style.filter = "drop-shadow(0 2px 4px rgba(0,0,0,0.3))";
-    el.style.pointerEvents = "none";
+    el.style.pointerEvents = "auto";
+    el.style.cursor = "pointer";
+    el.onclick = () => setMarkerTapped(d.type);
     return el;
   };
 
+  // Geographic midpoint for the distance label
+  function midpoint(a: LatLng, b: LatLng): LatLng {
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const toDeg = (rad: number) => (rad * 180) / Math.PI;
+    const lat1 = toRad(a.lat);
+    const lon1 = toRad(a.lng);
+    const lat2 = toRad(b.lat);
+    const lon2 = toRad(b.lng);
+    const dLon = lon2 - lon1;
+    const Bx = Math.cos(lat2) * Math.cos(dLon);
+    const By = Math.cos(lat2) * Math.sin(dLon);
+    const lat3 = Math.atan2(
+      Math.sin(lat1) + Math.sin(lat2),
+      Math.sqrt((Math.cos(lat1) + Bx) * (Math.cos(lat1) + Bx) + By * By)
+    );
+    const lon3 = lon1 + Math.atan2(By, Math.cos(lat1) + Bx);
+    return { lat: toDeg(lat3), lng: toDeg(lon3) };
+  }
+
+  // Distance label positioned at path midpoint when submitted
+  const distanceLabels = useMemo(() => {
+    if (!submitted || !guess || distanceKm == null) return [] as any[];
+    const mid = midpoint(guess, current.answer);
+    return [
+      { lat: mid.lat, lng: mid.lng, text: `${distanceKm.toFixed(1)} km` },
+    ];
+  }, [submitted, guess, current.answer, distanceKm]);
+
   return (
     <div className="w-full flex flex-col items-center">
-      <div className="text-base font-semibold mt-2">
-        Q{questionIdx + 1}/{QUIZ.length}
-      </div>
-      <div className="text-lg font-semibold text-center px-4">
-        {current.prompt}
-      </div>
-      <div className="text-sm text-gray-600 mb-2">
-        Tap the globe to place your guess.
+      {/* Top sticky header (card) */}
+      <div className="fixed top-3 left-0 right-0 z-10">
+        <div className="mx-auto w-full max-w-[640px] px-4 py-3 bg-white/95 text-gray-900 rounded-lg shadow-md border border-black/5">
+          <div className="text-xs text-gray-600">
+            Q{questionIdx + 1}/{QUIZ3.length}
+          </div>
+          <div className="text-base font-semibold leading-snug">
+            {current.prompt}
+          </div>
+          <div className="text-xs text-gray-600">
+            Tap the globe to place your guess.
+          </div>
+        </div>
       </div>
 
       <div className="w-full" style={{ maxWidth: 640 }}>
-        <div className="w-full" style={{ height: 360 }}>
+        <div className="w-full" style={{ height: "100vh" }}>
           <Globe
             // Use OpenStreetMap as tile engine
             globeTileEngineUrl={(x: number, y: number, l: number) =>
@@ -145,8 +187,9 @@ export default function GlobeGame() {
             }
             showAtmosphere={true}
             onGlobeClick={({ lat, lng }) => {
-              setGuess({ lat, lng });
-              setSubmitted(false);
+              if (!submitted) {
+                setGuess({ lat, lng });
+              }
             }}
             // Animated arc between guess and correct
             arcsData={arcsData}
@@ -163,13 +206,21 @@ export default function GlobeGame() {
             htmlLat={(d: any) => d.lat}
             htmlLng={(d: any) => d.lng}
             htmlElement={(d: any) => renderMarker(d)}
+            // Distance text label on path midpoint
+            labelsData={distanceLabels}
+            labelLat={(d: any) => d.lat}
+            labelLng={(d: any) => d.lng}
+            labelText={(d: any) => d.text}
+            labelSize={1.2}
+            labelColor={() => "#111827"}
+            labelIncludeDot={false}
           />
         </div>
       </div>
 
-      {/* Sticky bottom action bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-10">
-        <div className="mx-auto w-full max-w-[640px] px-4 pb-4 pt-2 bg-gradient-to-t from-white/95 via-white/80 to-transparent backdrop-blur">
+      {/* Sticky bottom action bar (card) */}
+      <div className="fixed bottom-3 left-0 right-0 z-10">
+        <div className="mx-auto w-full max-w-[640px] px-4 py-3 bg-white/95 text-gray-900 rounded-lg shadow-lg border border-black/5">
           {submitted && distanceKm !== null ? (
             <div className="mb-2 text-center text-base">
               You were{" "}
@@ -200,25 +251,73 @@ export default function GlobeGame() {
                 onClick={() => {
                   // Next question or restart
                   const next = questionIdx + 1;
-                  if (next < QUIZ.length) {
+                  if (distanceKm != null && guess) {
+                    setResults((prev) => [
+                      ...prev,
+                      {
+                        id: current.id,
+                        guess,
+                        answer: current.answer,
+                        distanceKm,
+                      },
+                    ]);
+                  }
+                  if (next < QUIZ3.length) {
                     setQuestionIdx(next);
                     setGuess(null);
                     setSubmitted(false);
+                    setMarkerTapped(null);
                   } else {
+                    // End of quiz - keep submitted state and show summary in place of button
                     setQuestionIdx(0);
                     setGuess(null);
                     setSubmitted(false);
+                    setMarkerTapped(null);
                   }
                 }}
                 className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow"
               >
-                {questionIdx + 1 < QUIZ.length ? "Next question" : "Restart"}
+                {questionIdx + 1 < QUIZ3.length ? "Next question" : "Finish"}
               </button>
             )}
           </div>
           <div style={{ paddingBottom: "env(safe-area-inset-bottom)" }} />
         </div>
       </div>
+
+      {/* Summary at the end when results contain all entries */}
+      {results.length === QUIZ3.length && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center px-4">
+          <div className="w-full max-w-[640px] bg-white text-gray-900 rounded-xl shadow-2xl border border-black/5 p-5">
+            <div className="text-lg font-semibold mb-2">Your results</div>
+            <ul className="space-y-1 text-sm mb-4">
+              {results.map((r, i) => (
+                <li
+                  key={`${r.id}-${i}`}
+                  className="flex items-center justify-between"
+                >
+                  <span className="font-medium">Q{i + 1}</span>
+                  <span>{r.distanceKm.toFixed(1)} km off</span>
+                </li>
+              ))}
+            </ul>
+            <div className="text-sm text-gray-700 mb-4">
+              Stored on-chain. Want to see how your friends performed?
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  // Placeholder CTA - can link to leaderboard route later
+                  alert("Coming soon: friends leaderboard");
+                }}
+                className="w-full px-4 py-3 rounded-lg font-semibold text-white bg-purple-600 hover:bg-purple-700 shadow"
+              >
+                View friends
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -51,5 +51,14 @@ export async function getFarcasterManifest() {
       ogImageUrl: `${appUrl}/images/feed.png`, // 1200 x 630px (1.91:1), promotional image, same as app hero image
       noindex: noindex,
     },
+    ...(env.BASE_BUILDER_ALLOWED_ADDRESSES
+      ? {
+          baseBuilder: {
+            allowedAddresses: env.BASE_BUILDER_ALLOWED_ADDRESSES.split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+          },
+        }
+      : {}),
   };
 }

@@ -9,6 +9,8 @@ export const env = createEnv({
     REDIS_URL: z.string().min(1),
     REDIS_TOKEN: z.string().min(1),
     IS_LOCAL_DEVELOPMENT: z.enum(["true", "false"]).optional().default("false"),
+    // Comma-separated list of addresses allowed to build the mini app (Base Build)
+    BASE_BUILDER_ALLOWED_ADDRESSES: z.string().optional().default(""),
   },
   client: {
     NEXT_PUBLIC_URL: z.string().min(1),
