@@ -10,6 +10,8 @@ export default async function middleware(req: NextRequest) {
   // Skip auth check for sign-in endpoint
   if (
     req.nextUrl.pathname === "/api/auth/sign-in" ||
+    (env.IS_LOCAL_DEVELOPMENT === "true" &&
+      req.nextUrl.pathname === "/api/auth/mock") ||
     req.nextUrl.pathname.includes("/api/og") ||
     req.nextUrl.pathname.includes("/api/webhook")
   ) {

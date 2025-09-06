@@ -1,12 +1,14 @@
 "use client";
 
+import GlobeGame from "@/components/GlobeGame";
 import { useSignIn } from "@/hooks/use-sign-in";
+import { env } from "@/lib/env";
 import Image from "next/image";
 import { useState } from "react";
 
 export default function Home() {
-  const { signIn, isLoading, isSignedIn, user } = useSignIn({
-    autoSignIn: true,
+  const { signIn, mockSignIn, isLoading, isSignedIn, user } = useSignIn({
+    autoSignIn: false,
   });
   const [testResult, setTestResult] = useState<string>("");
 
@@ -40,13 +42,11 @@ export default function Home() {
         </p>
 
         {!isSignedIn ? (
-          <button
-            onClick={signIn}
-            disabled={isLoading}
-            className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-          >
-            {isLoading ? "Signing in..." : "Sign in"}
-          </button>
+          <AuthButtons
+            onSignIn={signIn}
+            onMockSignIn={mockSignIn}
+            isLoading={isLoading}
+          />
         ) : (
           <div className="space-y-4">
             {user && (
@@ -73,6 +73,11 @@ export default function Home() {
               Test Authentication
             </button>
 
+            {/* Globe game below the Test Authentication button */}
+            <div className="mt-4">
+              <GlobeGame />
+            </div>
+
             {testResult && (
               <div className="mt-4 p-4 rounded-lg bg-gray-100 text-black text-sm">
                 {testResult}
@@ -81,6 +86,37 @@ export default function Home() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function AuthButtons({
+  onSignIn,
+  onMockSignIn,
+  isLoading,
+}: {
+  onSignIn: () => Promise<any>;
+  onMockSignIn: () => Promise<any>;
+  isLoading: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-3">
+      <button
+        onClick={onSignIn}
+        disabled={isLoading}
+        className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+      >
+        {isLoading ? "Signing in..." : "Sign in"}
+      </button>
+      {env.NEXT_PUBLIC_IS_LOCAL_DEVELOPMENT === "true" && (
+        <button
+          onClick={onMockSignIn}
+          disabled={isLoading}
+          className="px-6 py-3 bg-gray-700 text-white font-semibold rounded-lg shadow-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+        >
+          Mock Context
+        </button>
+      )}
     </div>
   );
 }

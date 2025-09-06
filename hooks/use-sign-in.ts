@@ -71,6 +71,32 @@ export const useSignIn = ({ autoSignIn = false }: { autoSignIn?: boolean }) => {
     }
   }, [context, signIn]);
 
+  const mockSignIn = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const res = await fetch("/api/auth/mock", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Mock sign in failed");
+      }
+      const data = await res.json();
+      setUser(data.user);
+      setIsSignedIn(true);
+      return data;
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Mock sign in failed";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     // if autoSignIn is true, sign in automatically on mount
     if (autoSignIn) {
@@ -78,5 +104,12 @@ export const useSignIn = ({ autoSignIn = false }: { autoSignIn?: boolean }) => {
     }
   }, [autoSignIn, handleSignIn]);
 
-  return { signIn: handleSignIn, isSignedIn, isLoading, error, user };
+  return {
+    signIn: handleSignIn,
+    mockSignIn,
+    isSignedIn,
+    isLoading,
+    error,
+    user,
+  };
 };
