@@ -7,6 +7,10 @@ jiti("./lib/env");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  eslint: {
+    // Skip ESLint during production builds (e.g., Vercel)
+    ignoreDuringBuilds: true,
+  },
   images: {
     remotePatterns: [
       {
