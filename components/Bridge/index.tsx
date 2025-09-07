@@ -210,8 +210,8 @@ export default function Bridge() {
     <div className="w-full max-w-xl mx-auto mt-10 p-4 rounded-lg border border-gray-200">
       <h2 className="text-xl font-semibold mb-2">Bridge to Kaolin (L3)</h2>
       <p className="text-sm text-gray-600 mb-4">
-        1) Make sure you have faucet ETH on L2. 2) Click "Bridge to L3" to send
-        ETH to the bridge contract.
+        1) Make sure you have faucet ETH on L2. 2) Click &quot;Bridge to
+        L3&quot; to send ETH to the bridge contract.
       </p>
 
       <div className="flex items-center gap-2 mb-4">
