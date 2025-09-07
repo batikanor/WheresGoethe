@@ -11,6 +11,7 @@ export const env = createEnv({
     IS_LOCAL_DEVELOPMENT: z.enum(["true", "false"]).optional().default("false"),
     // Comma-separated list of addresses allowed to build the mini app (Base Build)
     BASE_BUILDER_ALLOWED_ADDRESSES: z.string().optional().default(""),
+    QUIZ_VERSION: z.string().optional().default("1"),
   },
   client: {
     NEXT_PUBLIC_URL: z.string().min(1),
@@ -26,6 +27,16 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("false"),
+    NEXT_PUBLIC_QUIZ_VERSION: z.string().optional().default("1"),
+    NEXT_PUBLIC_QUIZ_Q1_PROMPT: z.string().optional().default(""),
+    NEXT_PUBLIC_QUIZ_Q1_LAT: z.string().optional().default(""),
+    NEXT_PUBLIC_QUIZ_Q1_LNG: z.string().optional().default(""),
+    NEXT_PUBLIC_QUIZ_Q2_PROMPT: z.string().optional().default(""),
+    NEXT_PUBLIC_QUIZ_Q2_LAT: z.string().optional().default(""),
+    NEXT_PUBLIC_QUIZ_Q2_LNG: z.string().optional().default(""),
+    NEXT_PUBLIC_QUIZ_Q3_PROMPT: z.string().optional().default(""),
+    NEXT_PUBLIC_QUIZ_Q3_LAT: z.string().optional().default(""),
+    NEXT_PUBLIC_QUIZ_Q3_LNG: z.string().optional().default(""),
   },
   // For Next.js >= 13.4.4, you only need to destructure client variables:
   experimental__runtimeEnv: {
@@ -38,5 +49,15 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_FARCASTER_SIGNATURE,
     NEXT_PUBLIC_IS_LOCAL_DEVELOPMENT:
       process.env.NEXT_PUBLIC_IS_LOCAL_DEVELOPMENT,
+    NEXT_PUBLIC_QUIZ_VERSION: process.env.QUIZ_VERSION,
+    NEXT_PUBLIC_QUIZ_Q1_PROMPT: process.env.NEXT_PUBLIC_QUIZ_Q1_PROMPT,
+    NEXT_PUBLIC_QUIZ_Q1_LAT: process.env.NEXT_PUBLIC_QUIZ_Q1_LAT,
+    NEXT_PUBLIC_QUIZ_Q1_LNG: process.env.NEXT_PUBLIC_QUIZ_Q1_LNG,
+    NEXT_PUBLIC_QUIZ_Q2_PROMPT: process.env.NEXT_PUBLIC_QUIZ_Q2_PROMPT,
+    NEXT_PUBLIC_QUIZ_Q2_LAT: process.env.NEXT_PUBLIC_QUIZ_Q2_LAT,
+    NEXT_PUBLIC_QUIZ_Q2_LNG: process.env.NEXT_PUBLIC_QUIZ_Q2_LNG,
+    NEXT_PUBLIC_QUIZ_Q3_PROMPT: process.env.NEXT_PUBLIC_QUIZ_Q3_PROMPT,
+    NEXT_PUBLIC_QUIZ_Q3_LAT: process.env.NEXT_PUBLIC_QUIZ_Q3_LAT,
+    NEXT_PUBLIC_QUIZ_Q3_LNG: process.env.NEXT_PUBLIC_QUIZ_Q3_LNG,
   },
 });

@@ -1,8 +1,9 @@
 "use client";
 
 import DebugPanel from "@/components/DebugPanel";
+import { env } from "@/lib/env";
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // Dynamically import to avoid SSR issues with three.js
 const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
@@ -92,9 +93,57 @@ export default function GlobeGame() {
     Array<{ id: string; guess: LatLng; answer: LatLng; distanceKm: number }>
   >([]);
   const [showDebug, setShowDebug] = useState<boolean>(false);
+  const [lockedResults, setLockedResults] = useState<Array<{
+    id: string;
+    guess: LatLng;
+    answer: LatLng;
+    distanceKm: number;
+  }> | null>(null);
 
-  const QUIZ3 = useMemo(() => QUIZ.slice(0, 3), []);
+  const QUIZ3 = useMemo(() => {
+    // Build from env when provided, else fallback to compiled defaults
+    const q: { prompt: string; lat?: number; lng?: number }[] = [];
+    const e = env;
+    const eNum = (s?: string) => (s ? parseFloat(s) : NaN);
+    if (e.NEXT_PUBLIC_QUIZ_Q1_PROMPT) {
+      q.push({
+        prompt: e.NEXT_PUBLIC_QUIZ_Q1_PROMPT,
+        lat: eNum(e.NEXT_PUBLIC_QUIZ_Q1_LAT),
+        lng: eNum(e.NEXT_PUBLIC_QUIZ_Q1_LNG),
+      });
+    }
+    if (e.NEXT_PUBLIC_QUIZ_Q2_PROMPT) {
+      q.push({
+        prompt: e.NEXT_PUBLIC_QUIZ_Q2_PROMPT,
+        lat: eNum(e.NEXT_PUBLIC_QUIZ_Q2_LAT),
+        lng: eNum(e.NEXT_PUBLIC_QUIZ_Q2_LNG),
+      });
+    }
+    if (e.NEXT_PUBLIC_QUIZ_Q3_PROMPT) {
+      q.push({
+        prompt: e.NEXT_PUBLIC_QUIZ_Q3_PROMPT,
+        lat: eNum(e.NEXT_PUBLIC_QUIZ_Q3_LAT),
+        lng: eNum(e.NEXT_PUBLIC_QUIZ_Q3_LNG),
+      });
+    }
+    if (
+      q.length === 3 &&
+      q.every((it) => Number.isFinite(it.lat) && Number.isFinite(it.lng))
+    ) {
+      return q.map((it, idx) => ({
+        id: `env-${idx + 1}`,
+        prompt: it.prompt,
+        answer: { lat: it.lat as number, lng: it.lng as number },
+      }));
+    }
+    return QUIZ.slice(0, 3);
+  }, []);
   const current = QUIZ3[questionIdx];
+
+  // Quiz completion state (local and persisted)
+  const localFinished = results.length === QUIZ3.length;
+  const alreadyFinished = lockedResults !== null;
+  const isFinished = localFinished || alreadyFinished;
 
   // Animated arc between guess and correct answer when submitted
   const arcsData = useMemo(() => {
@@ -163,22 +212,37 @@ export default function GlobeGame() {
     ];
   }, [submitted, guess, current.answer, distanceKm]);
 
+  // Check persisted completion on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/quiz/state", { credentials: "include" });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data?.results)) {
+          setLockedResults(data.results);
+        }
+      } catch (_) {}
+    })();
+  }, []);
+
   return (
     <div className="w-full flex flex-col items-center">
       {/* Top sticky header (card) */}
-      <div className="fixed top-3 left-0 right-0 z-10">
-        <div className="mx-auto w-full max-w-[640px] px-4 py-3 bg-white/95 text-gray-900 rounded-lg shadow-md border border-black/5">
-          <div className="text-xs text-gray-600">
-            Q{questionIdx + 1}/{QUIZ3.length}
-          </div>
-          <div className="text-base font-semibold leading-snug">
-            {current.prompt}
-          </div>
-          <div className="text-xs text-gray-600">
-            Tap the globe to place your guess.
+      {!isFinished && (
+        <div className="fixed top-3 left-0 right-0 z-10">
+          <div className="mx-auto w-full max-w-[640px] px-4 py-3 bg-white/95 text-gray-900 rounded-lg shadow-md border border-black/5">
+            <div className="text-xs text-gray-600">
+              Q{questionIdx + 1}/{QUIZ3.length}
+            </div>
+            <div className="text-base font-semibold leading-snug">
+              {current.prompt}
+            </div>
+            <div className="text-xs text-gray-600">
+              Tap the globe to place your guess.
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="w-full" style={{ maxWidth: 640 }}>
         <div className="w-full" style={{ height: "100vh" }}>
@@ -189,7 +253,7 @@ export default function GlobeGame() {
             }
             showAtmosphere={true}
             onGlobeClick={({ lat, lng }) => {
-              if (!submitted) {
+              if (!submitted && !isFinished) {
                 setGuess({ lat, lng });
               }
             }}
@@ -221,79 +285,89 @@ export default function GlobeGame() {
       </div>
 
       {/* Sticky bottom action bar (card) */}
-      <div className="fixed bottom-3 left-0 right-0 z-10">
-        <div className="mx-auto w-full max-w-[640px] px-4 py-3 bg-white/95 text-gray-900 rounded-lg shadow-lg border border-black/5">
-          {submitted && distanceKm !== null ? (
-            <div className="mb-2 text-center text-base">
-              You were{" "}
-              <span className="font-semibold">{distanceKm.toFixed(1)} km</span>{" "}
-              off.
-            </div>
-          ) : guess ? (
-            <div className="mb-2 text-center text-sm text-gray-700">
-              Selected: {guess.lat.toFixed(3)}°, {guess.lng.toFixed(3)}°
-            </div>
-          ) : (
-            <div className="mb-2 text-center text-sm text-gray-500">
-              Tap the globe to select a location
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            {!submitted ? (
-              <button
-                onClick={() => setSubmitted(true)}
-                disabled={!guess}
-                className="flex-1 px-4 py-3 rounded-lg font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 shadow"
-              >
-                Submit guess
-              </button>
+      {!isFinished && (
+        <div className="fixed bottom-3 left-0 right-0 z-10">
+          <div className="mx-auto w-full max-w-[640px] px-4 py-3 bg-white/95 text-gray-900 rounded-lg shadow-lg border border-black/5">
+            {submitted && distanceKm !== null ? (
+              <div className="mb-2 text-center text-base">
+                You were{" "}
+                <span className="font-semibold">
+                  {distanceKm.toFixed(1)} km
+                </span>{" "}
+                off.
+              </div>
+            ) : guess ? (
+              <div className="mb-2 text-center text-sm text-gray-700">
+                Selected: {guess.lat.toFixed(3)}°, {guess.lng.toFixed(3)}°
+              </div>
             ) : (
-              <button
-                onClick={() => {
-                  // Next question or restart
-                  const next = questionIdx + 1;
-                  if (distanceKm != null && guess) {
-                    setResults((prev) => [
-                      ...prev,
-                      {
+              <div className="mb-2 text-center text-sm text-gray-500">
+                Tap the globe to select a location
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              {!submitted ? (
+                <button
+                  onClick={() => setSubmitted(true)}
+                  disabled={!guess}
+                  className="flex-1 px-4 py-3 rounded-lg font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 shadow"
+                >
+                  Submit guess
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    // Next question or finish
+                    const next = questionIdx + 1;
+                    let newResults = results;
+                    if (distanceKm != null && guess) {
+                      const entry = {
                         id: current.id,
                         guess,
                         answer: current.answer,
                         distanceKm,
-                      },
-                    ]);
-                  }
-                  if (next < QUIZ3.length) {
-                    setQuestionIdx(next);
-                    setGuess(null);
-                    setSubmitted(false);
-                    setMarkerTapped(null);
-                  } else {
-                    // End of quiz - keep submitted state and show summary in place of button
-                    setQuestionIdx(0);
-                    setGuess(null);
-                    setSubmitted(false);
-                    setMarkerTapped(null);
-                  }
-                }}
-                className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow"
-              >
-                {questionIdx + 1 < QUIZ3.length ? "Next question" : "Finish"}
-              </button>
-            )}
+                      };
+                      newResults = [...results, entry];
+                      setResults(newResults);
+                    }
+                    if (next < QUIZ3.length) {
+                      setQuestionIdx(next);
+                      setGuess(null);
+                      setSubmitted(false);
+                      setMarkerTapped(null);
+                    } else {
+                      // Persist results and lock this version
+                      fetch("/api/quiz/state", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify(newResults),
+                      }).catch(() => {});
+                      // Lock UI
+                      setLockedResults(newResults);
+                      setSubmitted(false);
+                      setMarkerTapped(null);
+                    }
+                  }}
+                  className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow"
+                >
+                  {questionIdx + 1 < QUIZ3.length ? "Next question" : "Finish"}
+                </button>
+              )}
+            </div>
+            <div style={{ paddingBottom: "env(safe-area-inset-bottom)" }} />
           </div>
-          <div style={{ paddingBottom: "env(safe-area-inset-bottom)" }} />
         </div>
-      </div>
+      )}
 
       {/* Summary at the end when results contain all entries */}
-      {results.length === QUIZ3.length && (
+      {(results.length === QUIZ3.length || alreadyFinished) && (
         <div className="fixed inset-0 z-20 flex items-center justify-center px-4">
           <div className="w-full max-w-[640px] bg-white text-gray-900 rounded-xl shadow-2xl border border-black/5 p-5">
             <div className="text-lg font-semibold mb-2">Your results</div>
             <ul className="space-y-1 text-sm mb-4">
-              {results.map((r, i) => (
+              {(alreadyFinished ? lockedResults ?? [] : results).map((r, i) => (
                 <li
                   key={`${r.id}-${i}`}
                   className="flex items-center justify-between"
