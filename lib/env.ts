@@ -37,6 +37,15 @@ export const env = createEnv({
     NEXT_PUBLIC_QUIZ_Q3_PROMPT: z.string().optional().default(""),
     NEXT_PUBLIC_QUIZ_Q3_LAT: z.string().optional().default(""),
     NEXT_PUBLIC_QUIZ_Q3_LNG: z.string().optional().default(""),
+    NEXT_PUBLIC_GOLEMDB_RPC_URL: z.string().optional(),
+    NEXT_PUBLIC_GOLEMDB_CONTRACT_ADDRESS: z.string().optional(),
+    NEXT_PUBLIC_GOLEMDB_CHAIN_ID: z.string().optional(),
+    NEXT_PUBLIC_GOLEMDB_CHAIN_NAME: z
+      .string()
+      .optional()
+      .default("Golem Base L3 Testnet"),
+    NEXT_PUBLIC_GOLEMDB_BTL: z.string().optional().default("300"),
+    NEXT_PUBLIC_GOLEMDB_FROM_BLOCK: z.string().optional(),
   },
   // For Next.js >= 13.4.4, you only need to destructure client variables:
   experimental__runtimeEnv: {
@@ -59,5 +68,12 @@ export const env = createEnv({
     NEXT_PUBLIC_QUIZ_Q3_PROMPT: process.env.NEXT_PUBLIC_QUIZ_Q3_PROMPT,
     NEXT_PUBLIC_QUIZ_Q3_LAT: process.env.NEXT_PUBLIC_QUIZ_Q3_LAT,
     NEXT_PUBLIC_QUIZ_Q3_LNG: process.env.NEXT_PUBLIC_QUIZ_Q3_LNG,
+    NEXT_PUBLIC_GOLEMDB_RPC_URL: process.env.NEXT_PUBLIC_GOLEMDB_RPC_URL,
+    NEXT_PUBLIC_GOLEMDB_CONTRACT_ADDRESS:
+      process.env.NEXT_PUBLIC_GOLEMDB_CONTRACT_ADDRESS,
+    NEXT_PUBLIC_GOLEMDB_CHAIN_ID: process.env.NEXT_PUBLIC_GOLEMDB_CHAIN_ID,
+    NEXT_PUBLIC_GOLEMDB_CHAIN_NAME: process.env.NEXT_PUBLIC_GOLEMDB_CHAIN_NAME,
+    NEXT_PUBLIC_GOLEMDB_BTL: process.env.NEXT_PUBLIC_GOLEMDB_BTL,
+    NEXT_PUBLIC_GOLEMDB_FROM_BLOCK: process.env.NEXT_PUBLIC_GOLEMDB_FROM_BLOCK,
   },
 });

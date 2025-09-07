@@ -99,6 +99,16 @@ export default function GlobeGame() {
     answer: LatLng;
     distanceKm: number;
   }> | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [sharedTxHash, setSharedTxHash] = useState<string | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<
+    Array<{ entityKey: string; address?: string; totalScore?: number }>
+  >([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+  const [authed, setAuthed] = useState<boolean>(false);
+  const [showBridge, setShowBridge] = useState<boolean>(false);
 
   const QUIZ3 = useMemo(() => {
     // Build from env when provided, else fallback to compiled defaults
@@ -163,6 +173,13 @@ export default function GlobeGame() {
     return haversineKm(guess, current.answer);
   }, [guess, submitted, current.answer]);
 
+  // Score: 0km => 100, >= 20000km => 0, linear in between
+  const scorePct = useMemo(() => {
+    if (distanceKm == null) return null as number | null;
+    const d = Math.max(0, Math.min(20000, distanceKm));
+    return Math.round((1 - d / 20000) * 100);
+  }, [distanceKm]);
+
   // HTML markers for guess and correct answer
   const htmlMarkers = useMemo(() => {
     const data: Array<LatLng & { type: "guess" | "answer" }> = [];
@@ -222,8 +239,167 @@ export default function GlobeGame() {
           setLockedResults(data.results);
         }
       } catch (_) {}
+      try {
+        const me = await fetch("/api/auth/me", { credentials: "include" });
+        setAuthed(me.ok);
+      } catch (_) {
+        setAuthed(false);
+      }
     })();
   }, []);
+
+  // Helpers for GolemDB
+  function computeScore(distance: number): number {
+    const d = Math.max(0, Math.min(20000, distance));
+    return Math.round((1 - d / 20000) * 100);
+  }
+  function buildSharePayload() {
+    const final = alreadyFinished ? lockedResults ?? [] : results;
+    const perQuestion = final.map((r) => ({
+      distanceKm: r.distanceKm,
+      scorePct: computeScore(r.distanceKm),
+    }));
+    const totalScore = Math.round(
+      perQuestion.reduce((a, b) => a + b.scorePct, 0) /
+        Math.max(1, perQuestion.length)
+    );
+    return {
+      version: env.NEXT_PUBLIC_QUIZ_VERSION || "1",
+      totalScore,
+      perQuestion,
+      timestamp: Date.now(),
+    };
+  }
+  async function shareToGolemDB() {
+    try {
+      const rpc = env.NEXT_PUBLIC_GOLEMDB_RPC_URL;
+      const addr = env.NEXT_PUBLIC_GOLEMDB_CONTRACT_ADDRESS;
+      if (!rpc || !addr) {
+        alert("GolemDB RPC/contract not configured.");
+        return;
+      }
+      if (!authed) {
+        alert("Please sign in first to share your score.");
+        return;
+      }
+      setIsSharing(true);
+      setSharedTxHash(null);
+      const { ethers } = await import("ethers");
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      // Optional: ensure chain id
+      if (env.NEXT_PUBLIC_GOLEMDB_CHAIN_ID) {
+        const targetHex =
+          "0x" + parseInt(env.NEXT_PUBLIC_GOLEMDB_CHAIN_ID, 10).toString(16);
+        try {
+          await (window as any).ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: targetHex }],
+          });
+        } catch (switchErr: any) {
+          // if chain not added
+          if (switchErr?.code === 4902 && env.NEXT_PUBLIC_GOLEMDB_RPC_URL) {
+            await (window as any).ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: targetHex,
+                  chainName:
+                    env.NEXT_PUBLIC_GOLEMDB_CHAIN_NAME || "Golem Base L3",
+                  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+                  rpcUrls: [env.NEXT_PUBLIC_GOLEMDB_RPC_URL],
+                },
+              ],
+            });
+          }
+        }
+      }
+      const signer = await provider.getSigner();
+      const abi = [
+        "function createEntity(bytes data, uint256 btl, tuple(string key, string value)[] stringAnnotations) returns (bytes32)",
+        "function getEntity(bytes32 entityKey) view returns (bytes, uint256, tuple(string,string)[])",
+        "event EntityCreated(bytes32 indexed entityKey, address indexed owner, uint256 expirationBlock)",
+      ];
+      const contract = new (await import("ethers")).ethers.Contract(
+        addr,
+        abi,
+        signer
+      );
+      const payload = buildSharePayload();
+      const dataBytes = (await import("ethers")).ethers.toUtf8Bytes(
+        JSON.stringify(payload)
+      );
+      const btl = Number(env.NEXT_PUBLIC_GOLEMDB_BTL || "300");
+      const annotations = [
+        { key: "type", value: "wheres-goethe-score" },
+        { key: "version", value: String(payload.version) },
+      ];
+      const tx = await contract.createEntity(dataBytes, btl, annotations);
+      const receipt = await tx.wait();
+      setSharedTxHash(receipt?.hash || tx.hash);
+      alert("Shared to GolemDB: " + (receipt?.hash || tx.hash));
+    } catch (err: any) {
+      console.error(err);
+      alert("Share failed: " + (err?.message || String(err)));
+    } finally {
+      setIsSharing(false);
+    }
+  }
+  async function loadLeaderboard() {
+    try {
+      setLeaderboardLoading(true);
+      setLeaderboardError(null);
+      setLeaderboard([]);
+      const rpc = env.NEXT_PUBLIC_GOLEMDB_RPC_URL;
+      const addr = env.NEXT_PUBLIC_GOLEMDB_CONTRACT_ADDRESS;
+      if (!rpc || !addr) {
+        setLeaderboardError("GolemDB RPC/contract not configured.");
+        return;
+      }
+      const { ethers } = await import("ethers");
+      const provider = new ethers.JsonRpcProvider(rpc);
+      const abi = [
+        "function createEntity(bytes data, uint256 btl, tuple(string key, string value)[] stringAnnotations) returns (bytes32)",
+        "function getEntity(bytes32 entityKey) view returns (bytes, uint256, tuple(string,string)[])",
+        "event EntityCreated(bytes32 indexed entityKey, address indexed owner, uint256 expirationBlock)",
+      ];
+      const contract = new ethers.Contract(addr, abi, provider);
+      const fromBlock = env.NEXT_PUBLIC_GOLEMDB_FROM_BLOCK
+        ? Number(env.NEXT_PUBLIC_GOLEMDB_FROM_BLOCK)
+        : 0;
+      const filter = contract.filters.EntityCreated();
+      const logs = await contract.queryFilter(filter, fromBlock);
+      const rows: Array<{
+        entityKey: string;
+        address?: string;
+        totalScore?: number;
+      }> = [];
+      for (const log of logs) {
+        const ev = log as any; // ethers v6 EventLog has args array
+        const key = (ev.args && ev.args[0]) as string;
+        const entity = await contract.getEntity(key);
+        const raw = entity?.[0] as string;
+        let totalScore: number | undefined;
+        try {
+          const json = JSON.parse(
+            (await import("ethers")).ethers.toUtf8String(raw)
+          );
+          if (json && typeof json.totalScore === "number")
+            totalScore = json.totalScore;
+        } catch (_) {}
+        rows.push({
+          entityKey: key,
+          address: (ev.args && ev.args[1]) as string | undefined,
+          totalScore,
+        });
+      }
+      rows.sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0));
+      setLeaderboard(rows);
+    } catch (err: any) {
+      setLeaderboardError(err?.message || String(err));
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }
 
   return (
     <div className="w-full flex flex-col items-center">
@@ -295,6 +471,11 @@ export default function GlobeGame() {
                   {distanceKm.toFixed(1)} km
                 </span>{" "}
                 off.
+                {scorePct !== null && (
+                  <span className="ml-2 text-sm text-gray-700">
+                    Score: {scorePct}%
+                  </span>
+                )}
               </div>
             ) : guess ? (
               <div className="mb-2 text-center text-sm text-gray-700">
@@ -378,30 +559,108 @@ export default function GlobeGame() {
               ))}
             </ul>
             <div className="text-sm text-gray-700 mb-4">
-              Stored on-chain. Want to see how your friends performed?
+              Share to GolemDB or view the public leaderboard for this version.
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  // Placeholder CTA - can link to leaderboard route later
-                  alert("Coming soon: friends leaderboard");
+                onClick={async () => {
+                  await shareToGolemDB();
                 }}
-                className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-purple-600 hover:bg-purple-700 shadow"
+                disabled={isSharing || !authed}
+                className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-purple-600 hover:bg-purple-700 shadow disabled:opacity-50"
               >
-                View friends
+                {isSharing
+                  ? "Sharing..."
+                  : authed
+                  ? "Share to GolemDB"
+                  : "Sign in to share"}
               </button>
               <button
-                onClick={() => setShowDebug((v) => !v)}
-                className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-gray-800 hover:bg-gray-900 shadow"
+                onClick={async () => {
+                  setShowLeaderboard(true);
+                  await loadLeaderboard();
+                }}
+                className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow"
               >
-                Debug
+                See leaderboard
+              </button>
+              <button
+                onClick={() => setShowBridge(true)}
+                className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow"
+              >
+                Bridge to L3
               </button>
             </div>
-            {showDebug && (
-              <div className="mt-4 border-t border-black/5 pt-4">
-                <DebugPanel />
+            {sharedTxHash && (
+              <div className="mt-3 text-xs text-gray-600 break-all">
+                TX: {sharedTxHash}
               </div>
             )}
+            {showLeaderboard && (
+              <div className="mt-4 border-t border-black/5 pt-4">
+                <div className="text-base font-semibold mb-2">Leaderboard</div>
+                {leaderboardLoading ? (
+                  <div className="text-sm text-gray-600">Loading...</div>
+                ) : leaderboardError ? (
+                  <div className="text-sm text-red-600">{leaderboardError}</div>
+                ) : leaderboard.length === 0 ? (
+                  <div className="text-sm text-gray-600">No entries yet.</div>
+                ) : (
+                  <ul className="text-sm space-y-1">
+                    {leaderboard.map((row, idx) => (
+                      <li
+                        key={row.entityKey}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="text-gray-700">#{idx + 1}</span>
+                        <span className="truncate max-w-[55%] text-gray-900">
+                          {row.address || row.entityKey}
+                        </span>
+                        <span className="font-semibold">
+                          {row.totalScore ?? "-"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            <div className="mt-4 border-t border-black/5 pt-4">
+              <button
+                onClick={() => setShowDebug((v) => !v)}
+                className="w-full px-4 py-3 rounded-lg font-semibold text-white bg-gray-800 hover:bg-gray-900 shadow"
+              >
+                {showDebug ? "Hide Debug" : "Debug"}
+              </button>
+              {showDebug && (
+                <div className="mt-4">
+                  <DebugPanel />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {showBridge && (
+        <div className="fixed inset-0 z-30 bg-black/50 flex items-center justify-center px-4">
+          <div className="w-full max-w-[640px] bg-white text-gray-900 rounded-xl shadow-2xl border border-black/5 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-lg font-semibold">Bridge to Kaolin (L3)</div>
+              <button
+                onClick={() => setShowBridge(false)}
+                className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-2">
+              {(() => {
+                const Bridge = dynamic(() => import("@/components/Bridge"), {
+                  ssr: false,
+                });
+                return <Bridge />;
+              })()}
+            </div>
           </div>
         </div>
       )}

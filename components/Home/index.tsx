@@ -3,6 +3,7 @@
 import GlobeGame from "@/components/GlobeGame";
 import { useSignIn } from "@/hooks/use-sign-in";
 import { env } from "@/lib/env";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -12,6 +13,8 @@ export default function Home() {
   });
   const [testResult, setTestResult] = useState<string>("");
   const [showDebug, setShowDebug] = useState(false);
+
+  const Bridge = dynamic(() => import("@/components/Bridge"), { ssr: false });
 
   const testAuth = async () => {
     try {
@@ -68,7 +71,7 @@ export default function Home() {
               <DebugContent onTest={testAuth} testResult={testResult} />
             )}
 
-            {/* Globe game below the Test Authentication button */}
+            {/* Globe game */}
             <div className="mt-4">
               <GlobeGame />
             </div>
